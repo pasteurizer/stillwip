@@ -1,5 +1,5 @@
 /* ambient sound player — uses real mp3 loops, persisted state.
-   v0.1 */
+   v0.2 */
 (() => {
   const SOUNDS = [
     { id: 'rain',        label: 'rain',        src: 'sounds/rain.mp3' },
@@ -45,61 +45,41 @@
     audio.currentTime = 0;
   }
 
-  // Volume steps: 5 levels mapped to 0.0–1.0
-  // Represented as speaker + arc waves (like a real speaker icon)
-  // Each step lights up more waves to the right of the speaker cone
+  // 5 volume levels; rendered as rising bars
   const VOL_STEPS = [0.2, 0.4, 0.6, 0.8, 1.0];
-
-  // SVG speaker cone + wave arcs — inline, theme-colored
-  // Waves: 1=mute/very low, up to 3 arcs for full
-  function volSvg(vol) {
-    // How many arcs are active
-    const active = VOL_STEPS.filter(v => vol >= v - 0.001).length; // 0–5
-    // Map 5 steps to 3 arcs: steps 1-2 → 1 arc, 3 → 2 arcs, 4-5 → 3 arcs
-    const arcsLit = active === 0 ? 0 : active <= 2 ? 1 : active === 3 ? 2 : 3;
-
-    const on = 'var(--rp-foam)';
-    const off = 'var(--rp-hl-med)';
-    const cone = 'var(--rp-subtle)';
-
-    // Speaker cone path + 3 concentric arcs
-    // Viewbox 20x14, cone on left, arcs fan out right
-    const a1col = arcsLit >= 1 ? on : off;
-    const a2col = arcsLit >= 2 ? on : off;
-    const a3col = arcsLit >= 3 ? on : off;
-
-    return `<svg class="vol-svg" width="28" height="14" viewBox="0 0 28 14" xmlns="http://www.w3.org/2000/svg" style="display:inline-block;vertical-align:middle">
-      <!-- speaker cone: rectangle body + triangle flare -->
-      <rect x="1" y="4" width="4" height="6" rx="0.5" fill="${cone}"/>
-      <polygon points="5,4 9,1 9,13 5,10" fill="${cone}"/>
-      <!-- arc 1: close -->
-      <path d="M11,4.5 Q13,7 11,9.5" fill="none" stroke="${a1col}" stroke-width="1.4" stroke-linecap="round"/>
-      <!-- arc 2: mid -->
-      <path d="M13.5,2.5 Q17,7 13.5,11.5" fill="none" stroke="${a2col}" stroke-width="1.4" stroke-linecap="round"/>
-      <!-- arc 3: far -->
-      <path d="M16,0.5 Q21,7 16,13.5" fill="none" stroke="${a3col}" stroke-width="1.4" stroke-linecap="round"/>
-    </svg>`;
-  }
+  const BAR_H = [6, 8, 10, 12, 14]; // px
 
   // ---------- UI ----------
   const $player = document.getElementById('player');
+
+  // inline svg icons — stroke-based, currentColor, consistent weight
+  const IC = {
+    note:  '<svg class="p-ic" viewBox="0 0 14 14" width="12" height="12"><path d="M5 11V3.2l6-1.2v7.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="3.4" cy="11" r="1.7" fill="currentColor"/><circle cx="9.4" cy="9.5" r="1.7" fill="currentColor"/></svg>',
+    play:  '<svg class="p-ic" viewBox="0 0 14 14" width="11" height="11"><path d="M4 2.5v9l7.5-4.5z" fill="currentColor"/></svg>',
+    pause: '<svg class="p-ic" viewBox="0 0 14 14" width="11" height="11"><rect x="3.2" y="2.5" width="2.6" height="9" rx="1" fill="currentColor"/><rect x="8.2" y="2.5" width="2.6" height="9" rx="1" fill="currentColor"/></svg>',
+    prev:  '<svg class="p-ic" viewBox="0 0 14 14" width="11" height="11"><path d="M9 3 5 7l4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    next:  '<svg class="p-ic" viewBox="0 0 14 14" width="11" height="11"><path d="m5 3 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    close: '<svg class="p-ic" viewBox="0 0 14 14" width="10" height="10"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  };
 
   function render() {
     audio.volume = state.vol;
     if (!state.open) {
       $player.className = 'player collapsed';
-      $player.innerHTML = `<span class="icon">♪</span><span class="name">sound</span>`;
+      $player.innerHTML = `<span class="icon">${IC.note}</span><span class="name">sound</span>`;
       return;
     }
     $player.className = 'player' + (state.playing ? ' playing' : '');
-    const playIcon = state.playing ? '⏸' : '▶';
+    const bars = VOL_STEPS.map((v, i) =>
+      `<span class="p-hit" data-v="${v}" title="volume ${(i + 1)}/5"><i class="p-bar${state.vol >= v - 0.001 ? ' on' : ''}" style="height:${BAR_H[i]}px"></i></span>`
+    ).join('');
     $player.innerHTML = `
-      <span class="icon" data-act="play">${playIcon}</span>
-      <span class="arr" data-act="prev">‹</span>
-      <span class="name" data-act="play">${currentDef().label}</span>
-      <span class="arr" data-act="next">›</span>
-      <span class="vol-ctrl">${VOL_STEPS.map(v => `<span class="vol-step" data-v="${v}" style="opacity:${state.vol >= v - 0.001 ? 1 : 0.3}">|</span>`).join('')}${volSvg(state.vol)}</span>
-      <span class="close" data-act="close">×</span>
+      <button type="button" class="p-btn" data-act="play" title="${state.playing ? 'pause' : 'play'}">${state.playing ? IC.pause : IC.play}</button>
+      <button type="button" class="p-btn" data-act="prev" title="previous sound">${IC.prev}</button>
+      <span class="p-name" data-act="play" title="${state.playing ? 'pause' : 'play'}">${currentDef().label}</span>
+      <button type="button" class="p-btn" data-act="next" title="next sound">${IC.next}</button>
+      <span class="p-vol">${bars}</span>
+      <button type="button" class="p-btn" data-act="close" title="close player">${IC.close}</button>
     `;
   }
 

@@ -12,10 +12,12 @@
 
 <div class="stage">
   <div class="center">
+    <div class="glow" aria-hidden="true"></div>
     <div class="time" id="time">50:00</div>
   </div>
 
   <div class="statusbar">
+    <div class="sb-progress" id="sbProgress"></div>
     <!-- LEFT: phase · pomodoro X/Y · est finish -->
     <div class="sb-left">
       <span class="sb-phase" id="phase">focus</span>
@@ -142,7 +144,7 @@
   </span>
 </div>
 
-<span class="version-label">v0.1</span>
+<span class="version-label">v0.2</span>
 
 <script src="timer.js"></script>
 <script src="player.js"></script>

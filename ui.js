@@ -67,6 +67,22 @@
     if (s) $sbS.textContent = s;
     if (l) $sbL.textContent = l;
     $sbAuto.textContent = $cfgAuto.checked ? 'on' : 'off';
+    syncProgress(f, s, l);
+  }
+
+  // phase progress hairline (visual only — derived from #time + durations)
+  const $sbProgress = document.getElementById('sbProgress');
+  function syncProgress(f, s, l) {
+    if (!$sbProgress) return;
+    if (document.body.dataset.finished === '1') { $sbProgress.style.width = '0%'; return; }
+    const t = document.getElementById('time').textContent.match(/^(\d+):(\d+)$/);
+    if (!t) { $sbProgress.style.width = '0%'; return; }
+    const remaining = (+t[1]) * 60 + (+t[2]);
+    const phase = document.body.dataset.phase;
+    const durMin = phase === 'focus' ? +f : phase === 'short' ? +s : +l;
+    const dur = durMin * 60;
+    if (!dur || remaining > dur) { $sbProgress.style.width = '0%'; return; }
+    $sbProgress.style.width = ((1 - remaining / dur) * 100).toFixed(2) + '%';
   }
 
   // poll cheap & reliable; timer renders frequently
